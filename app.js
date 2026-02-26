@@ -350,34 +350,70 @@ async function boot() {
 }
 /* ========= BLOQUEO PIN ========= */
 
-const PIN_CORRECTO = "4935"; // CAMBIA ESTE PIN
+/* ========= BLOQUEO PIN (ARRANCA ANTES QUE FIREBASE) ========= */
+const PIN_CORRECTO = "2468"; // <-- CAMBIA AQUÍ TU PIN
 
-const pinLock = document.getElementById("pinLock");
-const pinInput = document.getElementById("pinInput");
-const pinBtn = document.getElementById("pinBtn");
-const pinError = document.getElementById("pinError");
+const PIN_KEY = "barquilla_pin_ok";
 
-function checkPin() {
-  const value = pinInput.value.trim();
-
-  if (value === PIN_CORRECTO) {
-    localStorage.setItem("barquilla_pin_ok", "1");
-    pinLock.style.display = "none";
-  } else {
-    pinError.textContent = "PIN incorrecto";
-  }
+function pinElements() {
+  return {
+    lock: document.getElementById("pinLock"),
+    input: document.getElementById("pinInput"),
+    btn: document.getElementById("pinBtn"),
+    err: document.getElementById("pinError"),
+  };
 }
 
-pinBtn?.addEventListener("click", checkPin);
+function hidePinLock() {
+  const { lock } = pinElements();
+  if (lock) lock.style.display = "none";
+}
 
-pinInput?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") checkPin();
-});
+function showPinLock() {
+  const { lock } = pinElements();
+  if (lock) lock.style.display = "flex";
+}
 
-window.addEventListener("DOMContentLoaded", () => {
-  const ok = localStorage.getItem("barquilla_pin_ok");
-  if (ok === "1") {
-    pinLock.style.display = "none";
+function isPinOk() {
+  return localStorage.getItem(PIN_KEY) === "1";
+}
+
+function setPinOk() {
+  localStorage.setItem(PIN_KEY, "1");
+}
+
+function wirePin(onSuccess) {
+  const { input, btn, err } = pinElements();
+  if (!input || !btn) return;
+
+  const tryEnter = () => {
+    const value = (input.value || "").trim();
+    if (value === PIN_CORRECTO) {
+      setPinOk();
+      hidePinLock();
+      if (typeof onSuccess === "function") onSuccess();
+    } else {
+      if (err) err.textContent = "PIN incorrecto";
+    }
+  };
+
+  btn.addEventListener("click", tryEnter);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") tryEnter();
+  });
+}
+
+/* Esta función decide si arranca la app (Firebase) o no */
+function requirePinThenStart(startAppFn) {
+  // Si ya está OK, arrancamos directamente
+  if (isPinOk()) {
+    hidePinLock();
+    startAppFn();
+    return;
   }
-});
+
+  // Si no, mostramos PIN y esperamos
+  showPinLock();
+  wirePin(startAppFn);
+}
 boot();
