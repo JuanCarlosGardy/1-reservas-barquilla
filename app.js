@@ -348,5 +348,36 @@ async function boot() {
 
   setStatus("Conectado. Datos sincronizados.");
 }
+/* ========= BLOQUEO PIN ========= */
 
+const PIN_CORRECTO = "4935"; // CAMBIA ESTE PIN
+
+const pinLock = document.getElementById("pinLock");
+const pinInput = document.getElementById("pinInput");
+const pinBtn = document.getElementById("pinBtn");
+const pinError = document.getElementById("pinError");
+
+function checkPin() {
+  const value = pinInput.value.trim();
+
+  if (value === PIN_CORRECTO) {
+    localStorage.setItem("barquilla_pin_ok", "1");
+    pinLock.style.display = "none";
+  } else {
+    pinError.textContent = "PIN incorrecto";
+  }
+}
+
+pinBtn?.addEventListener("click", checkPin);
+
+pinInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") checkPin();
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  const ok = localStorage.getItem("barquilla_pin_ok");
+  if (ok === "1") {
+    pinLock.style.display = "none";
+  }
+});
 boot();
