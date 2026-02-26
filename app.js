@@ -351,7 +351,7 @@ async function boot() {
 /* ========= BLOQUEO PIN ========= */
 
 /* ========= BLOQUEO PIN (ARRANCA ANTES QUE FIREBASE) ========= */
-const PIN_CORRECTO = "2468"; // <-- CAMBIA AQUÍ TU PIN
+const PIN_CORRECTO = "4935"; // <-- CAMBIA AQUÍ TU PIN
 
 const PIN_KEY = "barquilla_pin_ok";
 
