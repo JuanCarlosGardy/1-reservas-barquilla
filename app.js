@@ -416,4 +416,4 @@ function requirePinThenStart(startAppFn) {
   showPinLock();
   wirePin(startAppFn);
 }
-boot();
+requirePinThenStart(boot);
