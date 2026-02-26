@@ -1,61 +1,36 @@
 /* =========================
-   Reservas Barquilla - v1
-   - Guarda reservas en LocalStorage
-   - Guarda clientes por teléfono (autocompletar)
-   - Filtra pendientes y permite imprimir pendientes
+   Reservas Barquilla - Firestore Sync
+   - Reservas y clientes compartidos entre dispositivos
+   - Requiere Firebase Auth Anónimo + Firestore
    ========================= */
 
 const $ = (id) => document.getElementById(id);
 
-const LS_KEYS = {
-  reservations: "barquilla_reservations_v1",
-  clients: "barquilla_clients_v1",
+/* ========= 1) PEGA AQUÍ TU firebaseConfig ========= */
+const firebaseConfig = {
+  // Pega aquí el bloque que te da Firebase (apiKey, authDomain, projectId, etc.)
+  // apiKey: "...",
+  // authDomain: "...",
+  // projectId: "...",
+  // storageBucket: "...",
+  // messagingSenderId: "...",
+  // appId: "..."
 };
 
-function loadJSON(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
+/* ========= 2) INIT FIREBASE ========= */
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-function saveJSON(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
+/* ========= 3) REFERENCIAS ========= */
+const COL_RES = db.collection("reservations");
+const COL_CLI = db.collection("clients");
 
-function normalizePhone(phone) {
-  return (phone || "")
-    .trim()
-    .replace(/[\s\-().]/g, "")
-    .replace(/(?!^\+)[^\d]/g, "");
-}
+/* ========= 4) ESTADO ========= */
+let reservations = [];           // Array de reservas (desde Firestore)
+let clientsCache = {};           // { phoneNorm: { name, phoneOriginal } }
 
-function formatPhoneNice(phone) {
-  const p = (phone || "").trim();
-  if (p.startsWith("+")) return p;
-  const digits = p.replace(/\D/g, "");
-  if (digits.length <= 3) return digits;
-  return digits.replace(/(\d{3})(?=\d)/g, "$1 ");
-}
-
-function makeId() {
-  return crypto?.randomUUID?.() ?? String(Date.now()) + "_" + Math.random().toString(16).slice(2);
-}
-
-function compareByDateTime(a, b) {
-  const da = `${a.date}T${a.time}`;
-  const db = `${b.date}T${b.time}`;
-  return da.localeCompare(db);
-}
-
-// Estado
-let reservations = loadJSON(LS_KEYS.reservations, []);
-let clients = loadJSON(LS_KEYS.clients, {});
-
-// Elementos
+/* ========= 5) ELEMENTOS UI ========= */
 const form = $("reserveForm");
 const elDate = $("date");
 const elTime = $("time");
@@ -75,116 +50,22 @@ const btnReset = $("btnReset");
 const btnPrintPending = $("btnPrintPending");
 const btnClearAll = $("btnClearAll");
 
-// Defaults útiles
-(function setDefaults() {
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
-  elDate.value = `${yyyy}-${mm}-${dd}`;
+/* ========= UTILIDADES ========= */
+function setStatus(msg) { if (elStatus) elStatus.textContent = msg || ""; }
 
-  const mins = today.getMinutes();
-  const rounded = Math.ceil(mins / 5) * 5;
-  today.setMinutes(rounded, 0, 0);
-  const hh = String(today.getHours()).padStart(2, "0");
-  const mi = String(today.getMinutes()).padStart(2, "0");
-  elTime.value = `${hh}:${mi}`;
-})();
-
-function setStatus(msg) {
-  elStatus.textContent = msg || "";
+function normalizePhone(phone) {
+  return (phone || "")
+    .trim()
+    .replace(/[\s\-().]/g, "")
+    .replace(/(?!^\+)[^\d]/g, "");
 }
 
-function upsertClientFromForm() {
-  const phoneNorm = normalizePhone(elPhone.value);
-  if (!phoneNorm) return;
-
-  clients[phoneNorm] = {
-    name: (elName.value || "").trim(),
-    phoneOriginal: (elPhone.value || "").trim(),
-    lastSeen: new Date().toISOString(),
-  };
-  saveJSON(LS_KEYS.clients, clients);
-}
-
-function tryAutofillClient() {
-  const phoneNorm = normalizePhone(elPhone.value);
-  if (!phoneNorm) return;
-
-  const c = clients[phoneNorm];
-  if (c?.name && (!elName.value || elName.value.trim().length < 2)) {
-    elName.value = c.name;
-    setStatus("Cliente reconocido: nombre autocompletado.");
-  }
-}
-
-function resetForm(keepDateTime = true) {
-  const dateVal = elDate.value;
-  const timeVal = elTime.value;
-  form.reset();
-  if (keepDateTime) {
-    elDate.value = dateVal;
-    elTime.value = timeVal;
-  }
-  setStatus("");
-  elGuests.focus();
-}
-
-function validateForm() {
-  const date = elDate.value;
-  const time = elTime.value;
-  const guests = Number(elGuests.value);
-  const name = (elName.value || "").trim();
-  const phone = normalizePhone(elPhone.value);
-
-  if (!date) return "Falta el día.";
-  if (!time) return "Falta la hora.";
-  if (!Number.isFinite(guests) || guests < 1) return "Comensales debe ser 1 o más.";
-  if (!name) return "Falta el nombre.";
-  if (!phone) return "Falta el teléfono.";
-
-  return null;
-}
-
-function addReservationFromForm() {
-  const phoneNorm = normalizePhone(elPhone.value);
-  const phoneNice = formatPhoneNice(phoneNorm);
-
-  const r = {
-    id: makeId(),
-    date: elDate.value,
-    time: elTime.value,
-    guests: Number(elGuests.value),
-    name: (elName.value || "").trim(),
-    phone: phoneNice,
-    phoneNorm,
-    addedToOfibarman: !!elAdded.checked,
-    createdAt: new Date().toISOString(),
-  };
-
-  reservations.push(r);
-  reservations.sort(compareByDateTime);
-
-  saveJSON(LS_KEYS.reservations, reservations);
-  upsertClientFromForm();
-}
-
-function matchesSearch(r, q) {
-  if (!q) return true;
-  const s = q.toLowerCase();
-  return (
-    (r.name || "").toLowerCase().includes(s) ||
-    (r.phone || "").toLowerCase().includes(s)
-  );
-}
-
-function getFilteredReservations() {
-  const onlyPending = elOnlyPending.checked;
-  const q = (elSearch.value || "").trim();
-
-  return reservations
-    .filter((r) => (onlyPending ? !r.addedToOfibarman : true))
-    .filter((r) => matchesSearch(r, q));
+function formatPhoneNice(phone) {
+  const p = (phone || "").trim();
+  if (p.startsWith("+")) return p;
+  const digits = p.replace(/\D/g, "");
+  if (digits.length <= 3) return digits;
+  return digits.replace(/(\d{3})(?=\d)/g, "$1 ");
 }
 
 function escapeHtml(str) {
@@ -196,12 +77,54 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
+function toStartAt(dateStr, timeStr) {
+  // dateStr: YYYY-MM-DD, timeStr: HH:MM
+  const d = new Date(`${dateStr}T${timeStr}:00`);
+  return firebase.firestore.Timestamp.fromDate(d);
+}
+
+function matchesSearch(r, q) {
+  if (!q) return true;
+  const s = q.toLowerCase();
+  return (r.name || "").toLowerCase().includes(s) || (r.phone || "").toLowerCase().includes(s);
+}
+
+function getFilteredReservations() {
+  const onlyPending = !!elOnlyPending?.checked;
+  const q = (elSearch?.value || "").trim();
+
+  return reservations
+    .filter((r) => (onlyPending ? !r.addedToOfibarman : true))
+    .filter((r) => matchesSearch(r, q));
+}
+
+/* ========= DEFAULTS ========= */
+(function setDefaults() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  if (elDate) elDate.value = `${yyyy}-${mm}-${dd}`;
+
+  const mins = now.getMinutes();
+  const rounded = Math.ceil(mins / 5) * 5;
+  now.setMinutes(rounded, 0, 0);
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mi = String(now.getMinutes()).padStart(2, "0");
+  if (elTime) elTime.value = `${hh}:${mi}`;
+})();
+
+/* ========= RENDER ========= */
 function render() {
   const filtered = getFilteredReservations();
   const total = reservations.length;
   const pending = reservations.filter((r) => !r.addedToOfibarman).length;
 
-  elCounts.textContent = `Total: ${total} | Pendientes Ofibarman: ${pending} | Mostrando: ${filtered.length}`;
+  if (elCounts) {
+    elCounts.textContent = `Total: ${total} | Pendientes Ofibarman: ${pending} | Mostrando: ${filtered.length}`;
+  }
+
+  if (!elTbody) return;
 
   elTbody.innerHTML = filtered.map((r) => {
     const badge = r.addedToOfibarman
@@ -229,20 +152,69 @@ function render() {
   }).join("");
 }
 
-function toggleAdded(id) {
-  const idx = reservations.findIndex((r) => r.id === id);
-  if (idx === -1) return;
-  reservations[idx].addedToOfibarman = !reservations[idx].addedToOfibarman;
-  saveJSON(LS_KEYS.reservations, reservations);
-  render();
+/* ========= FIRESTORE ACCIONES ========= */
+async function addReservationFromForm() {
+  const phoneNorm = normalizePhone(elPhone.value);
+  const phoneNice = formatPhoneNice(phoneNorm);
+
+  const date = elDate.value;
+  const time = elTime.value;
+
+  const doc = {
+    date,
+    time,
+    startAt: toStartAt(date, time),
+    guests: Number(elGuests.value),
+    name: (elName.value || "").trim(),
+    phone: phoneNice,
+    phoneNorm,
+    addedToOfibarman: !!elAdded.checked,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await COL_RES.add(doc);
+
+  // Guardamos/actualizamos cliente (compartido)
+  await COL_CLI.doc(phoneNorm).set({
+    name: doc.name,
+    phoneOriginal: (elPhone.value || "").trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
 }
 
-function deleteReservation(id) {
-  reservations = reservations.filter((r) => r.id !== id);
-  saveJSON(LS_KEYS.reservations, reservations);
-  render();
+async function toggleAdded(id) {
+  const ref = COL_RES.doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return;
+  const current = snap.data()?.addedToOfibarman;
+  await ref.update({ addedToOfibarman: !current });
 }
 
+async function deleteReservation(id) {
+  await COL_RES.doc(id).delete();
+}
+
+async function clearAllReservations() {
+  // Borrado en lote (limitación 500/batch). Para uso normal vale.
+  const qs = await COL_RES.get();
+  const batch = db.batch();
+  qs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+}
+
+/* ========= AUTOCOMPLETE CLIENTE ========= */
+function tryAutofillClient() {
+  const phoneNorm = normalizePhone(elPhone.value);
+  if (!phoneNorm) return;
+
+  const c = clientsCache[phoneNorm];
+  if (c?.name && (!elName.value || elName.value.trim().length < 2)) {
+    elName.value = c.name;
+    setStatus("Cliente reconocido: nombre autocompletado.");
+  }
+}
+
+/* ========= IMPRESIÓN ========= */
 function printPendingOnly() {
   const prevPending = elOnlyPending.checked;
   const prevSearch = elSearch.value;
@@ -259,61 +231,123 @@ function printPendingOnly() {
   }, 100);
 }
 
-/* ============ Eventos ============ */
-elPhone.addEventListener("input", () => { tryAutofillClient(); });
-elPhone.addEventListener("blur", () => {
-  const p = normalizePhone(elPhone.value);
-  elPhone.value = formatPhoneNice(p);
-});
-
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const err = validateForm();
-  if (err) { setStatus(err); return; }
-  addReservationFromForm();
-  render();
-  setStatus("Reserva guardada.");
-  resetForm(true);
-});
-
-btnReset.addEventListener("click", () => resetForm(true));
-
-elOnlyPending.addEventListener("change", render);
-elSearch.addEventListener("input", render);
-
-$("table").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-action]");
-  if (!btn) return;
-
-  const tr = e.target.closest("tr[data-id]");
-  const id = tr?.dataset?.id;
-  if (!id) return;
-
-  const action = btn.dataset.action;
-  if (action === "toggle") toggleAdded(id);
-  if (action === "delete") deleteReservation(id);
-});
-
-btnPrintPending.addEventListener("click", printPendingOnly);
-
-btnClearAll.addEventListener("click", () => {
-  const ok = confirm("¿Seguro que quieres borrar TODAS las reservas? (No se puede deshacer)");
-  if (!ok) return;
-  reservations = [];
-  saveJSON(LS_KEYS.reservations, reservations);
-  render();
-  setStatus("Reservas borradas.");
-});
-
-// Fecha para impresión (si existe el elemento)
 window.addEventListener("beforeprint", () => {
   const el = document.getElementById("printDate");
   if (!el) return;
   const now = new Date();
   const fecha = now.toLocaleDateString("es-ES");
-  const hora = now.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+  const hora = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
   el.textContent = `Impreso el ${fecha} a las ${hora}`;
 });
 
-// Pintado inicial
-render();
+/* ========= EVENTOS UI ========= */
+elPhone?.addEventListener("input", tryAutofillClient);
+elPhone?.addEventListener("blur", () => {
+  const p = normalizePhone(elPhone.value);
+  elPhone.value = formatPhoneNice(p);
+});
+
+form?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const date = elDate.value;
+  const time = elTime.value;
+  const guests = Number(elGuests.value);
+  const name = (elName.value || "").trim();
+  const phone = normalizePhone(elPhone.value);
+
+  if (!date) return setStatus("Falta el día.");
+  if (!time) return setStatus("Falta la hora.");
+  if (!Number.isFinite(guests) || guests < 1) return setStatus("Comensales debe ser 1 o más.");
+  if (!name) return setStatus("Falta el nombre.");
+  if (!phone) return setStatus("Falta el teléfono.");
+
+  try {
+    await addReservationFromForm();
+    setStatus("Reserva guardada.");
+    form.reset();
+    // Mantener fecha/hora por comodidad
+    elDate.value = date;
+    elTime.value = time;
+    elGuests.focus();
+  } catch (err) {
+    setStatus(`Error guardando: ${err?.message || err}`);
+  }
+});
+
+btnReset?.addEventListener("click", () => {
+  const dateVal = elDate.value;
+  const timeVal = elTime.value;
+  form.reset();
+  elDate.value = dateVal;
+  elTime.value = timeVal;
+  setStatus("");
+  elGuests.focus();
+});
+
+elOnlyPending?.addEventListener("change", render);
+elSearch?.addEventListener("input", render);
+
+document.getElementById("table")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const tr = e.target.closest("tr[data-id]");
+  const id = tr?.dataset?.id;
+  if (!id) return;
+
+  try {
+    const action = btn.dataset.action;
+    if (action === "toggle") await toggleAdded(id);
+    if (action === "delete") await deleteReservation(id);
+  } catch (err) {
+    setStatus(`Error: ${err?.message || err}`);
+  }
+});
+
+btnPrintPending?.addEventListener("click", printPendingOnly);
+
+btnClearAll?.addEventListener("click", async () => {
+  const ok = confirm("¿Seguro que quieres borrar TODAS las reservas? (No se puede deshacer)");
+  if (!ok) return;
+
+  try {
+    await clearAllReservations();
+    setStatus("Reservas borradas.");
+  } catch (err) {
+    setStatus(`Error al vaciar: ${err?.message || err}`);
+  }
+});
+
+/* ========= 6) LOGIN ANÓNIMO + LISTENERS ========= */
+async function boot() {
+  try {
+    await auth.signInAnonymously();
+  } catch (err) {
+    setStatus(`Auth error: ${err?.message || err}`);
+    return;
+  }
+
+  // Cache de clientes (para autocompletar en todos los dispositivos)
+  COL_CLI.onSnapshot((snap) => {
+    const map = {};
+    snap.forEach((d) => {
+      map[d.id] = d.data();
+    });
+    clientsCache = map;
+  });
+
+  // Reservas en tiempo real, ordenadas por startAt
+  COL_RES.orderBy("startAt", "asc").onSnapshot((snap) => {
+    const arr = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      arr.push({ id: d.id, ...data });
+    });
+    reservations = arr;
+    render();
+  });
+
+  setStatus("Conectado. Datos sincronizados.");
+}
+
+boot();
