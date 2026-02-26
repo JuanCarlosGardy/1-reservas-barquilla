@@ -8,13 +8,12 @@ const $ = (id) => document.getElementById(id);
 
 /* ========= 1) PEGA AQUÍ TU firebaseConfig ========= */
 const firebaseConfig = {
-  // Pega aquí el bloque que te da Firebase (apiKey, authDomain, projectId, etc.)
-  // apiKey: "...",
-  // authDomain: "...",
-  // projectId: "...",
-  // storageBucket: "...",
-  // messagingSenderId: "...",
-  // appId: "..."
+  apiKey: "AIzaSyAckXRiVw9nPEhDETO6RzGC4jL75bssnPk",
+  authDomain: "reservas-barquilla.firebaseapp.com",
+  projectId: "reservas-barquilla",
+  storageBucket: "reservas-barquilla.firebasestorage.app",
+  messagingSenderId: "31920389630",
+  appId: "1:31920389630:web:87a2e0cd47031812e754af"
 };
 
 /* ========= 2) INIT FIREBASE ========= */
