@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reservas - Barquilla</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <div>
+        <h1>Reservas</h1>
+        <p class="muted">Registro rápido de llamadas + pendientes de Ofibarman</p>
+      </div>
+
+      <div class="topbar__actions">
+        <button id="btnPrintPending" class="btn btn--ghost" type="button">Imprimir pendientes</button>
+        <button id="btnClearAll" class="btn btn--danger" type="button" title="Borra todas las reservas (irreversible)">Vaciar</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="card">
+      <h2>Nueva reserva</h2>
+
+      <form id="reserveForm" class="form">
+        <div class="row">
+          <label>
+            Día
+            <input id="date" name="date" type="date" required />
+          </label>
+
+          <label>
+            Hora
+            <input id="time" name="time" type="time" required />
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Comensales
+            <input id="guests" name="guests" type="number" min="1" max="60" inputmode="numeric" required />
+          </label>
+
+          <label>
+            Teléfono
+            <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej: 623 413 861" required />
+            <small class="hint">Al escribir un teléfono ya guardado, se autocompleta el nombre.</small>
+          </label>
+        </div>
+
+        <label>
+          Nombre
+          <input id="name" name="name" type="text" autocomplete="name" placeholder="Nombre del cliente" required />
+        </label>
+
+        <label class="check">
+          <input id="added" name="added" type="checkbox" />
+          <span>Añadida a Ofibarman</span>
+        </label>
+
+        <div class="row row--actions">
+          <button class="btn" type="submit">Guardar reserva</button>
+          <button id="btnReset" class="btn btn--ghost" type="button">Limpiar</button>
+        </div>
+
+        <p id="status" class="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <!-- CABECERA SOLO PARA IMPRESIÓN -->
+      <div class="printHeader">
+        <img src="./logo-barquilla.png" alt="Restaurante Barquilla" class="printLogo">
+        <div class="printTitle">
+          <strong>Reservas pendientes Ofibarman</strong><br>
+          <span id="printDate"></span>
+        </div>
+      </div>
+
+      <div class="listHeader">
+        <div>
+          <h2>Listado</h2>
+          <p class="muted" id="counts"></p>
+        </div>
+
+        <div class="filters">
+          <label class="check">
+            <input id="onlyPending" type="checkbox" />
+            <span>Ver solo pendientes</span>
+          </label>
+
+          <input id="search" type="search" placeholder="Buscar por nombre o teléfono…" />
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table class="table" id="table">
+          <thead>
+            <tr>
+              <th>Día</th>
+              <th>Hora</th>
+              <th>Comensales</th>
+              <th>Nombre</th>
+              <th>Teléfono</th>
+              <th>Ofibarman</th>
+              <th class="noPrint">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="printNote muted">
+        Consejo: usa “Imprimir pendientes” para sacar solo lo que falta por cargar en Ofibarman.
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer muted">
+    Datos guardados en este dispositivo (navegador). Al subirlo a una web, funcionará igual en iPhone.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
