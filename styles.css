@@ -222,3 +222,38 @@ input:focus{
 
   tr{ page-break-inside: avoid; }
 }
+/* ==== BLOQUEO PIN ==== */
+.pinLock {
+  position: fixed;
+  inset: 0;
+  background: #0b1220;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.pinBox {
+  background: #111a2b;
+  padding: 40px;
+  border-radius: 12px;
+  text-align: center;
+  width: 300px;
+}
+
+.pinBox h2 {
+  margin-bottom: 20px;
+}
+
+.pinBox input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  border: none;
+}
+
+.pinError {
+  color: #ff4d4d;
+  margin-top: 10px;
+}
